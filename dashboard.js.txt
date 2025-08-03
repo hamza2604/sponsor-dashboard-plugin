@@ -1,0 +1,14 @@
+function sdpUpdateRate() {
+let service = document.getElementById('service');
+let rateInput = document.getElementById('rate');
+let selectedOption = service.options[service.selectedIndex];
+let rate = selectedOption ? selectedOption.getAttribute('data-rate') : 0;
+rateInput.value = rate;
+sdpCalculateTotal();
+}
+function sdpCalculateTotal() {
+let rate = parseFloat(document.getElementById('rate').value) || 0;
+let quantity = parseInt(document.getElementById('quantity').value) || 0;
+let total = rate * quantity;
+document.getElementById('total').value = total.toFixed(2);
+}

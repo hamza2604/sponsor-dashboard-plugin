@@ -1,0 +1,25 @@
+.sdp-dashboard {
+max-width: 1200px;
+margin: auto;
+}
+.sdp-logo {
+max-width: 150px;
+}
+.card {
+border-radius: 10px;
+box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+.table {
+font-size: 14px;
+}
+.btn-primary, .btn-success {
+border-radius: 5px;
+}
+@media (max-width: 768px) {
+.sdp-dashboard {
+padding: 10px;
+}
+.sdp-logo {
+max-width: 100px;
+}
+}

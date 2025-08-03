@@ -1,0 +1,171 @@
+<?php
+// Prevent direct access
+if (!defined('ABPATH')) {
+exit;
+}
+function sdp_render_dashboard() {
+if (!is_user_logged_in() || !current_user_can('sponsor')) {
+return '<p>Please log in as a sponsor to view the dashboard.</p>';
+}
+$user = wp_get_current_user();
+$balance = get_user_meta($user->ID, 'sponsor_balance', true) ?: 0;
+$referral_link = home_url('/ref=' . $user->ID);
+ob_start();
+?>
+<div class="container sdp-dashboard mt-4">
+<!-- Header with Logo -->
+<header class="text-center mb-4">
+<img src="<?php echo esc_url(get_theme_mod('custom_logo') ? wp_get_attachment_url(get_theme_mod('custom_logo')) : SDP_PLUGIN_URL . 'assets/images/logo.png'); ?>" alt="Logo" class="sdp-logo">
+</header>
+<!-- Sponsor Info -->
+<div class="card mb-4">
+<div class="card-body">
+<h4>Sponsor Information</h4>
+<p><strong>Name:</strong> <?php echo esc_html($user->display_name); ?></p>
+<p><strong>Balance:</strong> $<?php echo esc_html($balance); ?></p>
+<p><strong>Referral Link:</strong> <a href="<?php echo esc_url($referral_link); ?>"><?php echo esc_url($referral_link); ?></a></p>
+</div>
+</div>
+<!-- Balance Box -->
+<div class="card mb-4">
+<div class="card-body text-center">
+<h4>Current Balance</h4>
+<p class="h3">$<?php echo esc_html($balance); ?></p>
+<a href="https://halaluddog.infinityfreeapp.com/recharge/" class="btn btn-primary">Recharge</a>
+</div>
+</div>
+<!-- Order Form -->
+<div class="card mb-4">
+<div class="card-body">
+<h4>Place Order</h4>
+<form id="sdp-order-form" enctype="multipart/form-data" method="post">
+<?php wp_nonce_field('sdp_place_order', 'sdp_nonce'); ?>
+<div class="mb-3">
+<label for="service" class="form-label">Select Service</label>
+<select name="service" id="service" class="form-select" onchange="sdpUpdateRate()">
+<option value="">Select a service</option>
+<?php
+$services = get_posts([
+'post_type' => 'sponsor_services',
+'posts_per_page' => -1,
+]);
+foreach ($services as $service) {
+$category = get_post_meta($service->ID, 'service_category', true);
+$rate = get_post_meta($service->ID, 'service_rate', true);
+echo '<option value="' . $service->ID . '" data-rate="' . esc_attr($rate) . '">' . esc_html($service->post_title) . ' (' . esc_html($category) . ')</option>';
+}
+?>
+</select>
+</div>
+<div class="mb-3">
+<label for="rate" class="form-label">Rate</label>
+<input type="text" id="rate" class="form-control" readonly>
+</div>
+<div class="mb-3">
+<label for="quantity" class="form-label">Quantity</label>
+<input type="number" name="quantity" id="quantity" class="form-control" min="1" oninput="sdpCalculateTotal()">
+</div>
+<div class="mb-3">
+<label for="total" class="form-label">Total Amount</label>
+<input type="text" id="total" class="form-control" readonly>
+</div>
+<div class="mb-3">
+<label for="screenshot" class="form-label">Upload Screenshot</label>
+<input type="file" name="screenshot" id="screenshot" class="form-control" accept="image/*">
+</div>
+<div class="mb-3">
+<label for="note" class="form-label">Note</label>
+<textarea name="note" id="note" class="form-control"></textarea>
+</div>
+<div class="mb-3">
+<label for="link" class="form-label">Link</label>
+<input type="url" name="link" id="link" class="form-control">
+</div>
+<button type="submit" name="sdp_submit_order" class="btn btn-success">Submit Order</button>
+</form>
+</div>
+</div>
+<!-- Order History -->
+<div class="card">
+<div class="card-body">
+<h4>Order History</h4>
+<table class="table table-striped">
+<thead>
+<tr>
+<th>ID</th>
+<th>Service</th>
+<th>Quantity</th>
+<th>Total</th>
+<th>Status</th>
+<th>Screenshot</th>
+<th>Note</th>
+<th>Link</th>
+</tr>
+</thead>
+<tbody>
+<?php
+global $wpdb;
+$orders = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$wpdb->prefix}sponsor_orders WHERE user_id = %d", $user->ID));
+foreach ($orders as $order) {
+$service = get_post($order->service_id);
+?>
+<tr>
+<td><?php echo $order->order_id; ?></td>
+<td><?php echo esc_html($service->post_title); ?></td>
+<td><?php echo $order->quantity; ?></td>
+<td>$<?php echo $order->total; ?></td>
+<td><?php echo esc_html($order->status); ?></td>
+<td><a href="<?php echo esc_url($order->screenshot_url); ?>" target="_blank">View</a></td>
+<td><?php echo esc_html($order->note); ?></td>
+<td><a href="<?php echo esc_url($order->link); ?>" target="_blank"><?php echo esc_html($order->link); ?></a></td>
+</tr>
+<?php
+}
+?>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<?php
+return ob_get_clean();
+}
+// Handle order submission
+add_action('init', 'sdp_handle_order_submission');
+function sdp_handle_order_submission() {
+if (isset($_POST['sdp_submit_order']) && check_admin_referer('sdp_place_order', 'sdp_nonce')) {
+global $wpdb;
+$user_id = get_current_user_id();
+$service_id = intval($_POST['service']);
+$quantity = intval($_POST['quantity']);
+$rate = floatval(get_post_meta($service_id, 'service_rate', true));
+$total = $rate * $quantity;
+$note = sanitize_textarea_field($_POST['note']);
+$link = esc_url_raw($_POST['link']);
+// Handle screenshot upload
+$screenshot_url = '';
+if (!empty($_FILES['screenshot']['name'])) {
+$upload = wp_handle_upload($_FILES['screenshot'], ['test_form' => false]);
+if (isset($upload['url'])) {
+$screenshot_url = $upload['url'];
+}
+}
+// Insert order
+$wpdb->insert(
+$wpdb->prefix . 'sponsor_orders',
+[
+'user_id' => $user_id,
+'service_id' => $service_id,
+'quantity' => $quantity,
+'total' => $total,
+'status' => 'Pending',
+'screenshot_url' => $screenshot_url,
+'note' => $note,
+'link' => $link,
+'order_date' => current_time('mysql'),
+]
+);
+wp_redirect(add_query_arg('order_status', 'submitted', wp_get_referer()));
+exit;
+}
+}

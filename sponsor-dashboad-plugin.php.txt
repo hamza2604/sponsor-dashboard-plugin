@@ -1,0 +1,29 @@
+<?php
+/*
+Plugin Name: Sponsor Dashboard
+Description: A plugin for managing sponsor dashboards and admin panels.
+Version: 1.0
+Author: Sojib
+*/
+// Prevent direct access
+if (!defined('ABSPATH')) {
+exit;
+}
+// Define constants
+define('SDP_PLUGIN_URL', plugin_dir_url(_FILE_));
+// Enqueue scripts
+add_action('wp_enqueue_scripts', 'sdp_enqueue_assets');
+function sdp_enqueue_assets() {
+wp_enqueue_script('sdp-dashboard-js', SDP_PLUGIN_URL . '/assets/js/dashboard.js', ['jquery'], null, true);
+}
+// Create shortcode [halal_sponsor]
+add_shortcode('halal_sponsor', 'sdp_render_dashboard');
+function sdp_render_dashboard() {
+// Add your dashboard content here
+return '<div class="sponsor-dashboard">Welcome to the Sponsor Dashboard!</div>';
+}
+// Add custom role for sponsors
+add_action('init', 'sdp_add_sponsor_role');
+function sdp_add_sponsor_role() {
+add_role('sponsor', 'Sponsor', ['read' => true]);
+}
